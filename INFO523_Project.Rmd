@@ -1,0 +1,199 @@
+---
+title: "INFO523_Project_SVM"
+author: "Rice"
+date: "2023-08-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(e1071)
+library(ggplot2)
+
+# Load the MASS package to access the cats dataset
+library(MASS)
+
+# Access the cats dataset
+my_data <- cats
+
+plot(my_data$Hwt, my_data$Bwt, col=as.factor(my_data$Sex), 
+     main="Scatterplot of Bwt vs Hwt", 
+     xlab="Heart Weight (Hwt)", ylab="Body Weight (Bwt)")
+legend("topright", legend=levels(my_data$Sex), fill=1:length(levels(my_data$Sex)))
+
+
+
+# Scale only the numeric columns. For this dataset, we'll scale Bwt and Hwt
+my_data$Bwt <- scale(my_data$Bwt) # scaling the column Bwt
+my_data$Hwt <- scale(my_data$Hwt) # scaling the colun Hwt
+
+my_data$rand <- runif(nrow(my_data)) # adding a column of random values 
+my_data <- my_data[order(my_data$rand),] # sort by column of random values
+my_data <- my_data[,-ncol(my_data)] # deleting column of random values 
+
+train <- my_data[1:100,]
+test <- my_data[101:144,]
+
+
+
+model_linear <- svm(Sex~., data = train, kernel="linear", C=10)
+plot <- plot(model_linear,train)
+
+m_predict_linear <- predict(model_linear,test)
+table(m_predict_linear, test$Sex)
+
+agreement <- m_predict_linear == test$Sex
+table(agreement)
+round(prop.table(table(agreement)),2)
+
+
+model_radial <- svm(Sex~., data = train, kernel="radial", C=10, gamma=0.8)
+plot <- plot(model_radial, train)
+model_predict_radial <- predict(model_radial,test)
+table(model_predict_radial, test$Sex)
+
+agreement <- model_predict_radial == test$Sex
+table(agreement)
+round(prop.table(table(agreement)),2)
+
+
+
+model_poly <- svm(Sex~., data = train, kernel="polynomial", degree=5, gamma=0.8)
+plot <- plot(model_poly, train)
+model_predict_poly <- predict(model_poly,test)
+table(model_predict_poly, test$Sex)
+
+agreement <- model_predict_poly == test$Sex
+table(agreement)
+round(prop.table(table(agreement)),2)
+
+
+
+
+# X rep. the support vectors - data points that line on or within the margin
+# O rep. non-support vectors - lie outside the margin and do not directly influence the position or orientation of the hyperplane
+
+```
+
+```{r}
+library(kernlab)
+
+```
+
+```{r}
+## download the letter recognition data set 
+
+library(here)
+if (!"letter-recognition.data" %in% list.files(here("data"))) {
+  url <- "https://archive.ics.uci.edu/ml/machine-learning-databases/letter-recognition/letter-recognition.data"
+  download.file(url, destfile=here("data","letter-recognition.data"), mode="wb") 
+}
+
+
+```
+
+
+```{r}
+
+## reading in the letter recognition data set 
+
+letters <- read.csv(here("data", "letter-recognition.data"), header = FALSE,stringsAsFactors = TRUE)
+
+letters <- data.frame(letters)
+
+colnames(letters) <- c("Letter","x-box","y-box","width","high","onpix","x-bar","y-bar","x2bar","y2bar","xybar","x2ybr","xy2br","x-ege","xegvy","y-ege","yegvx")
+
+letters_train <- letters[1:16000,]
+letters_test <- letters[16001:20000,]
+
+head(letters)
+
+```
+
+Attribute Information:
+	 1.	lettr	capital letter	(26 values from A to Z)
+	 2.	x-box	horizontal position of box	(integer)
+	 3.	y-box	vertical position of box	(integer)
+	 4.	width	width of box			(integer)
+	 5.	high 	height of box			(integer)
+	 6.	onpix	total # on pixels		(integer)
+	 7.	x-bar	mean x of on pixels in box	(integer)
+	 8.	y-bar	mean y of on pixels in box	(integer)
+	 9.	x2bar	mean x variance			(integer)
+	10.	y2bar	mean y variance			(integer)
+	11.	xybar	mean x y correlation		(integer)
+	12.	x2ybr	mean of x * x * y		(integer)
+	13.	xy2br	mean of x * y * y		(integer)
+	14.	x-ege	mean edge count left to right	(integer)
+	15.	xegvy	correlation of x-ege with y	(integer)
+	16.	y-ege	mean edge count bottom to top	(integer)
+	17.	yegvx	correlation of y-ege with x	(integer)
+	
+```{r}
+
+svm_linear <- ksvm(Letter ~ ., data = letters_train, kernel = "vanilladot")
+
+letter_predictions <- predict(svm_linear, letters_test)
+
+table(letter_predictions, letters_test$Letter)
+
+agreement <- letter_predictions == letters_test$Letter
+table(agreement)
+prop.table(table(agreement))
+```
+
+```{r}
+set.seed(12345)
+letter_classifier_rbf <- ksvm(Letter ~ ., data = letters_train,kernel = "rbfdot")
+letter_predictions_rbf <- predict(letter_classifier_rbf, letters_test)
+agreement_rbf <- letter_predictions_rbf == letters_test$Letter
+
+table(letter_predictions_rbf, letters_test$Letter)
+
+agreement <- letter_predictions == letters_test$Letter
+table(agreement)
+prop.table(table(agreement))
+
+```
+
+```{r}
+cost_values <- c(1, seq(from = 4, to = 20, by = 2))
+accuracy_values <- sapply(cost_values, function(x) {
+ set.seed(12345)
+ m <- ksvm(Letter ~ ., data = letters_train, kernel = "rbfdot", C = x)
+ pred <- predict(m, letters_test)
+ agree <- ifelse(pred == letters_test$Letter, 1, 0)
+ accuracy <- sum(agree) / nrow(letters_test)
+ return (accuracy)
+ })
+plot <-plot(cost_values, accuracy_values, type = "b")
+print(plot)
+
+jpeg("svm_plot.jpg")
+plot <-plot(cost_values, accuracy_values, type = "b")
+dev.off()
+
+```
+
+
+
+```{r}
+set.seed(12345)
+svm_model <- ksvm(Letter ~ ., data = letters_train,kernel = "rbfdot",C=12)
+svm_pred <- predict(svm_model, letters_test)
+
+agreement_C12 <- svm_pred == letters_test$Letter
+table(agreement_C12)
+
+prop.table(table(agreement_C12))
+
+```
+
+
+
+
